@@ -1,4 +1,4 @@
-### SQL-Recipes
+# SQL-Recipes
 
 This shell script contains commands for modifying a sqlite3 database with an emphasis on storing recipe ingredient lists. The available commands are as follows:
 
