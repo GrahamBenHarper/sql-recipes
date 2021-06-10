@@ -74,8 +74,8 @@ add_recipe_name() {
     sqlite3 ${DATABASE_FILE} "INSERT INTO recipeIds(id, name) VALUES(${MY_ID},'$1')"
   else
     echo "--Name found for $1 in recipes table!"
-    return ${MY_ID}
   fi
+  return ${MY_ID}
 }
 
 # Attempts to add an ingredient name to the table, and
@@ -100,8 +100,8 @@ add_ingredient_name() {
     sqlite3 ${DATABASE_FILE} "INSERT INTO ingredientIds(id, name) VALUES(${MY_ID},'$1')"
   else
     echo "--Name found for $1 in recipes table!"
-    return ${MY_ID}
   fi  
+  return ${MY_ID}
 }
 
 # Adds a recipe to the database.
@@ -120,7 +120,8 @@ add_recipe() {
     INGREDIENT=$(sanitize "${INGREDIENT}")      
     INGREDIENTS+=("${INGREDIENT}")
     read -p 'Enter the amount of ingredient: ' INGREDIENT_AMOUNT
-    INGREDIENT_AMOUNT=$(sanitize "${INGREDIENT_AMOUNT}")
+    # TODO: sanitizing this removes decimals and fractions. We'll revisit this later...
+    # INGREDIENT_AMOUNT=$(sanitize "${INGREDIENT_AMOUNT}")
     INGREDIENT_AMOUNTS+=("${INGREDIENT_AMOUNT}")
     
     ISNT_VALID=1
@@ -142,15 +143,28 @@ add_recipe() {
   done
 
   for ((i=0; i<${#INGREDIENTS[@]}; i++ )); do
-    add_ingredient_name ${INGREDIENTS[$i]}
+    add_ingredient_name "${INGREDIENTS[$i]}"
     INGREDIENT_ID=$?
-#    echo "Recipe id: ${RECIPE_ID}"
-#    echo "Ingredient: ${INGREDIENTS[$i]}"
-#    echo "Ingredient id: ${INGREDIENT_ID}"
-#    echo "Ingredient amount: ${INGREDIENT_AMOUNTS[$i]}"
     sqlite3 ${DATABASE_FILE} "INSERT INTO recipes(recipeId, ingredientId, amount) VALUES(${RECIPE_ID},${INGREDIENT_ID},'${INGREDIENT_AMOUNTS[$i]}')"
   done
-  #add_ingredient_name "$INGREDIENT"
+}
+
+# Outputs all recipe names associated with two ingredients.
+dual_search_recipes() {
+  if [ $# -le 1 ]; then
+    echo "!!Not enough ingredients provided for dual search!"
+    return 1
+  fi
+
+  QUERY1=$(echo $1 | tr "*" "%")
+  QUERY2=$(echo $2 | tr "*" "%")
+
+  RESULT=$(sqlite3 ${DATABASE_FILE} "SELECT DISTINCT recipeIds.name, recipes.amount, recipes2.amount FROM recipeIds INNER JOIN recipes ON recipeIds.id=recipes.recipeId INNER JOIN recipes AS 'recipes2' ON recipes.recipeId=recipes2.recipeId INNER JOIN ingredientIds ON ingredientIds.id=recipes.ingredientId AND ingredientIds.name LIKE '${QUERY1}' INNER JOIN ingredientIds AS 'ingredientIds2' ON ingredientIds2.id=recipes2.ingredientId AND ingredientIds2.name LIKE '${QUERY2}'")
+  if [[ ${RESULT} == "" ]]; then
+    echo "!!No recipes found with ingredients ${QUERY1} and ${QUERY2}!"
+    return 1
+  fi
+  sqlite3 ${DATABASE_FILE} "SELECT DISTINCT recipeIds.name, recipes.amount, recipes2.amount FROM recipeIds INNER JOIN recipes ON recipeIds.id=recipes.recipeId INNER JOIN recipes AS 'recipes2' ON recipes.recipeId=recipes2.recipeId INNER JOIN ingredientIds ON ingredientIds.id=recipes.ingredientId AND ingredientIds.name LIKE '${QUERY1}' INNER JOIN ingredientIds AS 'ingredientIds2' ON ingredientIds2.id=recipes2.ingredientId AND ingredientIds2.name LIKE '${QUERY2}'"
 }
 
 # Outputs all recipe names associated with a given ingredient name.
@@ -211,7 +225,14 @@ elif [[ $1 == "search" ]]; then
     echo "!!No ingredient provided to search!"
     exit 1
   fi
-  search_recipes "$2"
+  if [[ $# -eq 2 ]]; then
+    search_recipes "$2"
+  elif [[ $# -eq 3 ]]; then
+    dual_search_recipes "$2" "$3"
+  elif [[ $# -ge 4 ]]; then
+    echo "No available method to search 3 simultaneous ingredients yet!"
+    exit 1
+  fi
 elif [[ $1 == "print" ]]; then
   if [[ $# -le 1 ]]; then
     echo "!!No recipe provided to print!"
